@@ -50,24 +50,14 @@ uptrend with a value of 1 means the trend is up
 downtrend with a value of 1 means the trend is down
 """
 
-df['direction'] = df['difference'].apply(lambda x: 1 if x>0 else -1 if x<0 else 0) 
-df['same'] = 1
-df['up_trend'] =0
-df['down_trend'] = 0
-for i in range(len(df)):
-    if df['direction'].iloc[i] == 0:
-        df.iloc[i,-3] = 1
-        df.iloc[i,-2] =0
-        df.iloc[i,-1] = 0
-    elif df['direction'].iloc[i] == -1:
-        df.iloc[i,-3] = 0
-        df.iloc[i,-2] =0
-        df.iloc[i,-1] = 1
-    else:
-        df.iloc[i,-3] = 0
-        df.iloc[i,-2] = 1
-        df.iloc[i,-1] = 0
+df['difference'] = df['lastPrice'].shift(1)-df['lastPrice']
+df.dropna(inplace = True)
+df['direction'] = df['difference'].apply(lambda x: 1 if x>0 else -1 if x<0 else 0)
 
+
+df['same'] = np.where(df['direction']==0,1,0)
+df['up_trend'] = np.where(df['direction']==1,1,0)
+df['down_trend'] = np.where(df['direction']==-1,1,0)
 
 # balancing data to contain same directional data to help learning without biases
 df = pd.concat(objs = (pd.DataFrame(df[df['same']>0].iloc[0:len(df[df['down_trend']>0])]), pd.DataFrame(df[df['up_trend']>0].iloc[0:len(df[df['down_trend']>0])]), pd.DataFrame(df[df['down_trend']>0].iloc[0:len(df[df['down_trend']>0])]))).sort_index()
@@ -89,7 +79,9 @@ X_test = scaler.transform(X_test)
 
 #setting up the model of tensorflow
 input_layer = Input(shape=(X.shape[1]))
-x = Dense(50, activation='relu')(input_layer)
+x = Dense(100, activation='relu')(input_layer)
+x = Dropout(0.5)(x)
+x = Dense(50, activation='relu')(x)
 x = Dropout(0.5)(x)
 x = Dense(25, activation='relu')(x)
 x = Dropout(0.5)(x)
@@ -101,9 +93,8 @@ model.compile(loss='categorical_crossentropy', optimizer='adam', metrics = ['acc
 early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=50)
 
 #fit the model
-r = model.fit(X_train, y_train, epochs = 200000,
+r = model.fit(X_train, y_train, epochs = 200000, batch_size=512,
              validation_data = (X_test, y_test), callbacks=[early_stop], shuffle=0.5)
-
 #plot the results.
 pd.DataFrame(r.history).plot()
 
